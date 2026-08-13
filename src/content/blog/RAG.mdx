@@ -1,0 +1,59 @@
+---
+title: "RAG: Bí Thuật Giúp AI Ngừng Nói Nhảm"
+description: "RAG (Retrieval-Augmented Generation) - công nghệ nền tảng đằng sau các chatbot AI doanh nghiệp hiện đại như ChatGPT, Copilot."
+date: "2026-08-13"
+tags: ["AI", "RAG"]
+---
+
+# Cách RAG Giúp AI Vượt Qua Giới Hạn Kiến Thức
+
+## Retrieval-Augmented Generation (RAG)
+Hạn chế của các mô hình LLM:
+- Kiến thức bị giới hạn tại thời điểm trainning.
+- Cửa sổ ngữ cảnh có giới hạn.
+RAG là kỹ thuật mạnh mẽ để giải quyết cả hai vấn đề này.
+
+### Giai đoạn Offline - Indexing
+Biến codebase, tài liệu thành dạng mà AI có thể tìm kiếm theo ngữ nghĩa.
+Quy trình:
+- **Load and Split**: tải các tại liệu (pdf, py, md) về và chia chúng thành các đoạn nhỏ (chunks) vài trăm từ. Việc chia nhỏ này để tìm thánh các thông tin cụ thể.
+- **Emmbed**: dùng các mô hình emmbedding để chuyển các chunk thành vector số. Vector được tạo ra sẽ đại diện cho đoạn văn bản đó.
+- **Store**: Lưu trữ các cặp (chunk, vector) này vào một Cơ sở dữ liệu Vector.
+### Giai đoạn Online - Retrieval & Augmentation
+Khi người dụng đặt câu hỏi, tìm ra các thông tin từ thư viện vừa tạo ở Indexing để cung cấp cho LLM.
+Quy trình:
+- **Embed Query**: Chuyển đổi câu hỏi của người dùng ("Làm thế nào để reset mật khẩu?") thành một vector bằng cùng một embedding model.
+- **Search**: Thực hiện một phép tìm kiếm tương đồng (similarity search) trong CSDL Vector để tìm ra N vector (và các chunk tương ứng) gần nhất với vector
+câu hỏi.
+- **Augment Prompt**: Tự động xây dựng một prompt mới bằng cách chèn các chunk đã tìm thấy vào phần bối cảnh.
+
+## So sánh RAG và Fine-tuning
+
+### Fine-tuning (Tinh chỉnh):
+Là quá trình **huấn luyện tiếp (continue training)** một mô hình đã được huấn luyện trước trên một bộ dữ liệu của riêng bạn. Quá trình này **thay đổi trọng số (weights)** của mô hình.
+
+- **Để dạy AI một phong cách cụ thể**: Ví dụ, fine-tune để AI luôn viết mã Python theo chuẩn của Google.
+- Để dạy AI một định dạng đầu ra phức tạp**: Ví dụ, fine-tune để AI luôn trả về một định dạng JSON lồng nhau rất đặc thù.
+- **Để dạy AI một "tính cách" riêng**: Ví dụ, fine-tune để AI luôn trả lời theo phong cách của một nhân vật nào đó.
+
+### RAG (Retrieval-Augmented Generation)
+Là quá trình cung cấp kiến thức cho mô hình **Tại thởi điểm suy luận (at interface time)** và quá trình này **Không thay đổi trọng số** của mô hình.
+
+- **Khi kiến thức cần được cập nhật thường xuyên**: Ví dụ, codebase của bạn thay đổi hàng ngày.
+*Khi cần trích dẫn nguồn và giảm ảo giác**: RAG có thể chỉ ra chính xác đoạn văn bản nào đã được sử dụng để tạo ra câu trả lời.
+- **Khi bạn có một lượng lớn tài liệu**: RAG là cách hiệu quả để "đưa" toàn bộ tài liệu đó vào tầm với của AI.
+
+### Bảng so sánh
+
+| Tiêu chí | Fine-tuning | RAG |
+|---------|-------------|-----|
+| Mục tiêu | Dạy **kỹ năng/phong cách** mới | Cung cấp **kiến thức** mới |
+| Thay đổi mô hình | Có, thay đổi trọng số (weights) | Không, mô hình gốc không đổi |
+| Kiến thức | “Nướng” vào trong mô hình | Cung cấp tại thời điểm chạy |
+| Cập nhật | Tốn kém, phải huấn luyện lại | Dễ dàng, chỉ cần cập nhật CSDL Vector |
+| Ảo giác | Vẫn có thể xảy ra | Giảm đáng kể, có thể kiểm chứng |
+| Ví dụ A‑SDLC | Dạy AI viết commit message theo chuẩn công ty | Dạy AI về mã nguồn mới nhất của finance‑service |
+
+
+### Kết luận
+RAG và Fine-tuning không loại trừ nhau. Một hệ thống tiên tiến có thể sử dụng một mô hình đã được fine-tune để có phong cách viết mã tốt, sau đó cung cấp cho nó kiến thức cập nhật qua RAG.

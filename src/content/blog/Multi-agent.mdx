@@ -4,3 +4,81 @@ description: ""
 date: "2026-08-14"
 tags: ["AI", "Workflow","Multi-agent"]
 ---
+
+## 8.1 Điều phối Agent
+### Thiết kể Prompt Chaining
+**Prompt Chaining** là một kỹ thuật để xây dựng quy trình tự động cho AI. Thay vì viết một prompt dài bị giới hạn ngữ cảnh và phức tạp, chúng ta nên chia nhỏ nó ra thành các bước logic. **Đầu ra của prompt này sẽ là đầu vào của prompt tiếp theo**, tạo ra chuỗi prompt liên kết với nhau. Để làm được điều đó kỹ thuật này yêu cầu chúng ta phải tuân thủ một số quy định như: quản lí trạng thái (state), xử lí lỗi và điều hướng logic.
+Có một số dạng của kỹ thuật này như:
+- Sequential Chaining
+- Branching Chaining
+- Iterative Chaining
+
+#### Chuỗi tuần tự - Sequential Chaining
+A -> B -> C
+Dạng này là đơn giản nhất, nó được hiểu là các bước được thực hiện nối tiếp nhau. Nó phụ hợp cho các trường hợp tuyến tính, nơi mỗi bước sẽ phụ thuộc trực tiếp vào kết quả cảu bước trước đó.
+Ví dụ: 
+- Prompt A: Hãy thiết kế cho tôi một tính năng A.
+- Prompt B: Từ output prompt A. Hãy tạo code dự trên mô tả đó.
+- Prompt C: Lấy kết quả các file được sinh ra từ prompt B. Kiểm tra và sinh test case và test tính năng đó.
+
+#### Chuỗi Phân nhánh - Branching Chaining
+A -> (B1, B2) -> (C1, C2, ...)
+Từ một output kích hoạt nhiều luồng thực thi có điều kiện để xử lí các tác vụ song song. Kỹ thuật này tạo ra các quy trình tự động có khả năng quyết định.
+Ví dụ:
+- Prompt A: Đọc và phân tích lỗi từ `log_error.md` xem lỗi phát sinh từ Frontend, Backend hay Database. trả về kết quả JSON.
+- Script: Đọc kết quả JSON từ prompt A tạo ra.
+    - if error_type == 'Frontend' thì dùng prompt `fix_frontend.md`.
+    - if error_type == 'Database' thì dùng prompt `fix_database.md`.
+    - if error_type == 'Backend' thì dùng prompt `fix_backend.md`.
+
+#### Chuỗi lặp lại - Iterative Chaining
+A -> B -> (if condition, goto A)
+Chạy một prompt với vòng lặp có điều kiện, lặp đi lặp lại cho đến khi cho kết quả đúng (cho các agent tự sửa lỗi và cải thiện).
+Ví dụ: 
+Vòng lặp TDD tự động
+- Prompt A (Agent Lập trình): "Viết mã cho hàm calculate_vattrong filevat.py."
+- Script (Bộ điều phối): Chạy pytest tests/test_vat.py.
+- Điều kiện: Nếu pytest thất bại, lấy output lỗi (stdout/stderr).
+- Prompt B (Lặp lại - Agent Sửa lỗi): "Mã bạn viết đã gây ra lỗi sau: [dán output lỗi]. Hãy phân tích và sửa lại mã trong file vat.py." Lặp lại quy trình này cho đến khi pytest thành công hoặc sau N lần thử.
+
+### LangChain and AutoGen
+
+Các framework như LangChain và AutoGen cung cấp các công cụ trừu tượng hóa để giúp quá trình này dễ dàng hơn, cho phép chúng ta tập trung vào logic thay vì các chi tiết kỹ thuật của việc gọi API.
+
+#### LangChain
+Cung cấp các "building blocks" để có thể lắp ráp thành các LLM phức tạp. Mạnh trong việc tạo các chuỗi xử lý dữ liệu có cấu trúc.
+- **Chains**: là trái tim của LangChain, thực hiện hoá các khái niệm Prompt Chaining. LLMChain là một chain đơn giản, SequentialChain kết nối nhiều chain lại với nhau.
+- **Agents \& Tools**:  LangChain cung cấp các agent có khả năng sử dụng tools. Tools có thể là: công cụ tìm kiếm, API, Database và cũng có thể là một chain khác.
+- **Memory**: Cho phép chain và agent nhớ các trò chuyện và trạng thái trước đó.
+Phù hợp với quy trình có cấu trúc rõ ràng, kết nối LLM với các nguồn dữ liệu bên ngoài.
+
+#### AutoGen (Microsoft Research):
+Thay vì xây dựng chuỗi, Autogen cho phép tạo một room để các agent có thể nói chuyện với nhau để giải quyết vấn đề, tập trung vào sự tương tác linh hoạt giữa các agent.
+- **Conversable Agents**: Các agent có thể gửi và nhận tin nhắn.
+- **UserProxyAgent**: Một agent đặc biệt đại diện cho con người, có thể thực thi mã và yêu cầu sự can thiệp của con người.
+- **AssistantAgent**: Một agent AI tiêu chuẩn (giống như ChatGPT)
+Hiệu quả cho các bài toán đòi hỏi sự hợp tác, phản biện hoặc các quy trình phức tạp mà luồng đi không được xác định trước. Có thể tạo một công ty phần mềm với đội ngũ:  CoderAgent, TesterAgent, và ProductManagerAgent để chúng tự thảo luận và phát triển một tính năng.
+
+### Multi-Agent Collaboration
+Một số cách thiết kế hệ thống Multi-Agent như:
+
+#### Assembly Line
+Mỗi Agent sẽ chịu trách nhiệm cho một giai đoạn cụ thể và chuyển giao kết quả cho agen tiếp theo.
+Ví dụ A-SDLC:
+Gemini (Analyst) -> Claude (Coder) -> Claude (Tester) -> Gemini (Documenter)
+
+#### Debate/Review Team
+Một agent tạo giải pháp và một hoặc nhiều agent khác đánh giá và tìm ra điểm yếu. Quá trình này lặp lại cho đến khi đạt được kết quả tốt nhất có thể. Giúp tăng chất lượng và giảm lỗi logic.
+Ví dụ:
+- Prompt cho Agent-Code: "Hãy viết một endpoint FastAPI để người dùng có thể tải lên ảnh đại diện."
+- Prompt cho Agent-Security: "Bạn là một chuyên gia pentest. Hãy phân tích đoạn mã endpoint tải file sau và liệt kê tất cả các lỗ hổng bảo mật tiềm ẩn (ví dụ:
+Path Traversal, không giới hạn loại file, không quét virus, v.v.)."
+- Prompt cho Agent-Code (Vòng 2): "Dựa trên các lỗ hổng mà chuyên gia an ninh đã chỉ ra, hãy viết lại endpoint này một cách an toàn."
+
+#### Expert Council
+Một agent quản lý một yêu cầu phức tạp và phân chia cho các agent khác, sau đó tổng hợp và đưa ra quyết định. Hiệu quả cho các quy trình đòi hỏi kiến thức đa ngành.
+Ví dụ:
+- **Yêu cầu đến Agent Quản lý**: "Chúng ta nên chọn CSDL nào cho service thông báo: PostgreSQL hay Cassandra?"
+- **Agent Quản lý hỏi Agent Chuyên gia 1**: "Với vai trò là chuyên gia PostgreSQL, hãy phân tích ưu/nhược điểm khi dùng PostgreSQL cho một hệ thống ghi dữ liệu thông báo với lưu lượng lớn."
+- **Agent Quản lý hỏi Agent Chuyên gia 2**: "Với vai trò là chuyên gia NoSQL, hãy phân tích ưu/nhược điểm khi dùng Cassandra cho bài toán tương tự."
+- **Agent Quản lý tổng hợp**: "Dựa trên hai phân tích trên, và xét đến yêu cầu về khả năng ghi cao và truy vấn đơn giản của chúng ta, Cassandra có vẻ là lựa chọn phù hợp hơn. Đây là bản tóm tắt so sánh...

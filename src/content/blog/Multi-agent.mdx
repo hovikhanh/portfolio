@@ -42,11 +42,11 @@ Vòng lặp TDD tự động
 - Điều kiện: Nếu pytest thất bại, lấy output lỗi (stdout/stderr).
 - Prompt B (Lặp lại - Agent Sửa lỗi): "Mã bạn viết đã gây ra lỗi sau: [dán output lỗi]. Hãy phân tích và sửa lại mã trong file vat.py." Lặp lại quy trình này cho đến khi pytest thành công hoặc sau N lần thử.
 
-### LangChain and AutoGen
+## LangChain and AutoGen
 
 Các framework như LangChain và AutoGen cung cấp các công cụ trừu tượng hóa để giúp quá trình này dễ dàng hơn, cho phép chúng ta tập trung vào logic thay vì các chi tiết kỹ thuật của việc gọi API.
 
-#### LangChain
+### LangChain
 Cung cấp các "building blocks" để có thể lắp ráp thành các LLM phức tạp. Mạnh trong việc tạo các chuỗi xử lý dữ liệu có cấu trúc.
 - **Chains**: là trái tim của LangChain, thực hiện hoá các khái niệm Prompt Chaining. LLMChain là một chain đơn giản, SequentialChain kết nối nhiều chain lại với nhau.
 - **Agents \& Tools**:  LangChain cung cấp các agent có khả năng sử dụng tools. Tools có thể là: công cụ tìm kiếm, API, Database và cũng có thể là một chain khác.

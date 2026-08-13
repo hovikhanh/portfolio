@@ -1,19 +1,20 @@
 ---
-title: "Multi-Agent Workflow: Cách Thiết Kế Hệ Thống AI Tự Vận Hành"
+title: "Nhạc Trưởng AI: Nghệ Thuật Điều Phối Multi-Agent"
 description: ""
 date: "2026-08-14"
 tags: ["AI", "Workflow","Multi-agent"]
 ---
 
-## 8.1 Điều phối Agent
-### Thiết kể Prompt Chaining
+# Multi-Agent Workflow: Cách Thiết Kế Hệ Thống AI Tự Vận Hành
+
+## Thiết kể Prompt Chaining
 **Prompt Chaining** là một kỹ thuật để xây dựng quy trình tự động cho AI. Thay vì viết một prompt dài bị giới hạn ngữ cảnh và phức tạp, chúng ta nên chia nhỏ nó ra thành các bước logic. **Đầu ra của prompt này sẽ là đầu vào của prompt tiếp theo**, tạo ra chuỗi prompt liên kết với nhau. Để làm được điều đó kỹ thuật này yêu cầu chúng ta phải tuân thủ một số quy định như: quản lí trạng thái (state), xử lí lỗi và điều hướng logic.
 Có một số dạng của kỹ thuật này như:
 - Sequential Chaining
 - Branching Chaining
 - Iterative Chaining
 
-#### Chuỗi tuần tự - Sequential Chaining
+### Chuỗi tuần tự - Sequential Chaining
 A -> B -> C
 Dạng này là đơn giản nhất, nó được hiểu là các bước được thực hiện nối tiếp nhau. Nó phụ hợp cho các trường hợp tuyến tính, nơi mỗi bước sẽ phụ thuộc trực tiếp vào kết quả cảu bước trước đó.
 Ví dụ: 
@@ -21,7 +22,7 @@ Ví dụ:
 - Prompt B: Từ output prompt A. Hãy tạo code dự trên mô tả đó.
 - Prompt C: Lấy kết quả các file được sinh ra từ prompt B. Kiểm tra và sinh test case và test tính năng đó.
 
-#### Chuỗi Phân nhánh - Branching Chaining
+### Chuỗi Phân nhánh - Branching Chaining
 A -> (B1, B2) -> (C1, C2, ...)
 Từ một output kích hoạt nhiều luồng thực thi có điều kiện để xử lí các tác vụ song song. Kỹ thuật này tạo ra các quy trình tự động có khả năng quyết định.
 Ví dụ:
@@ -31,7 +32,7 @@ Ví dụ:
     - if error_type == 'Database' thì dùng prompt `fix_database.md`.
     - if error_type == 'Backend' thì dùng prompt `fix_backend.md`.
 
-#### Chuỗi lặp lại - Iterative Chaining
+### Chuỗi lặp lại - Iterative Chaining
 A -> B -> (if condition, goto A)
 Chạy một prompt với vòng lặp có điều kiện, lặp đi lặp lại cho đến khi cho kết quả đúng (cho các agent tự sửa lỗi và cải thiện).
 Ví dụ: 

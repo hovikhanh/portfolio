@@ -53,22 +53,22 @@ Cung cấp các "building blocks" để có thể lắp ráp thành các LLM ph�
 - **Memory**: Cho phép chain và agent nhớ các trò chuyện và trạng thái trước đó.
 Phù hợp với quy trình có cấu trúc rõ ràng, kết nối LLM với các nguồn dữ liệu bên ngoài.
 
-#### AutoGen (Microsoft Research):
+### AutoGen (Microsoft Research):
 Thay vì xây dựng chuỗi, Autogen cho phép tạo một room để các agent có thể nói chuyện với nhau để giải quyết vấn đề, tập trung vào sự tương tác linh hoạt giữa các agent.
 - **Conversable Agents**: Các agent có thể gửi và nhận tin nhắn.
 - **UserProxyAgent**: Một agent đặc biệt đại diện cho con người, có thể thực thi mã và yêu cầu sự can thiệp của con người.
 - **AssistantAgent**: Một agent AI tiêu chuẩn (giống như ChatGPT)
 Hiệu quả cho các bài toán đòi hỏi sự hợp tác, phản biện hoặc các quy trình phức tạp mà luồng đi không được xác định trước. Có thể tạo một công ty phần mềm với đội ngũ:  CoderAgent, TesterAgent, và ProductManagerAgent để chúng tự thảo luận và phát triển một tính năng.
 
-### Multi-Agent Collaboration
+## Multi-Agent Collaboration
 Một số cách thiết kế hệ thống Multi-Agent như:
 
-#### Assembly Line
+### Assembly Line
 Mỗi Agent sẽ chịu trách nhiệm cho một giai đoạn cụ thể và chuyển giao kết quả cho agen tiếp theo.
 Ví dụ A-SDLC:
 Gemini (Analyst) -> Claude (Coder) -> Claude (Tester) -> Gemini (Documenter)
 
-#### Debate/Review Team
+### Debate/Review Team
 Một agent tạo giải pháp và một hoặc nhiều agent khác đánh giá và tìm ra điểm yếu. Quá trình này lặp lại cho đến khi đạt được kết quả tốt nhất có thể. Giúp tăng chất lượng và giảm lỗi logic.
 Ví dụ:
 - Prompt cho Agent-Code: "Hãy viết một endpoint FastAPI để người dùng có thể tải lên ảnh đại diện."
@@ -76,7 +76,7 @@ Ví dụ:
 Path Traversal, không giới hạn loại file, không quét virus, v.v.)."
 - Prompt cho Agent-Code (Vòng 2): "Dựa trên các lỗ hổng mà chuyên gia an ninh đã chỉ ra, hãy viết lại endpoint này một cách an toàn."
 
-#### Expert Council
+### Expert Council
 Một agent quản lý một yêu cầu phức tạp và phân chia cho các agent khác, sau đó tổng hợp và đưa ra quyết định. Hiệu quả cho các quy trình đòi hỏi kiến thức đa ngành.
 Ví dụ:
 - **Yêu cầu đến Agent Quản lý**: "Chúng ta nên chọn CSDL nào cho service thông báo: PostgreSQL hay Cassandra?"

